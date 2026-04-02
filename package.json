@@ -1,0 +1,48 @@
+{
+  "name": "@isimplifyme/ui",
+  "version": "1.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./theme": "./src/theme/index.ts",
+    "./theme/animations": "./src/theme/animations.ts",
+    "./theme/colors": "./src/theme/colors.ts",
+    "./theme/typography.css": "./src/theme/typography.css",
+    "./bento": "./src/bento-grid.tsx",
+    "./footer": "./src/control-panel-footer.tsx",
+    "./article": "./src/article-layout.tsx",
+    "./nav": "./src/site-nav.tsx",
+    "./smooth-scroll": "./src/smooth-scroll.tsx",
+    "./custom-cursor": "./src/custom-cursor.tsx",
+    "./noise-overlay": "./src/noise-overlay.tsx",
+    "./section-reveal": "./src/section-reveal.tsx",
+    "./seo": "./src/seo.tsx",
+    "./article-toc": "./src/article-toc.tsx",
+    "./image-lightbox": "./src/image-lightbox.tsx",
+    "./related-articles": "./src/related-articles.tsx"
+  },
+  "files": [
+    "src"
+  ],
+  "peerDependencies": {
+    "react": "^19",
+    "react-dom": "^19",
+    "framer-motion": "^12",
+    "next": ">=16"
+  },
+  "devDependencies": {
+    "react": "^19",
+    "react-dom": "^19",
+    "framer-motion": "^12",
+    "next": "^16",
+    "typescript": "^6",
+    "@types/react": "^19"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DelanoJoey/isimplifyme-ui.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}
