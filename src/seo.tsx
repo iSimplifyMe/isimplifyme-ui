@@ -47,7 +47,7 @@ export interface PostMeta {
 export function articleJsonLd(post: PostMeta, site: SiteConfig) {
   return {
     '@context': 'https://schema.org',
-    '@type': site.type === 'newsroom' ? 'NewsArticle' : 'Article',
+    '@type': 'BlogPosting',
     headline: post.title,
     description: post.excerptText,
     image: post.image ? `${site.url}${post.image}` : undefined,
@@ -73,6 +73,10 @@ export function articleJsonLd(post: PostMeta, site: SiteConfig) {
     },
     articleSection: post.category,
     keywords: post.tags?.join(', '),
+    speakable: {
+      '@type': 'SpeakableSpecification',
+      cssSelector: ['.atomic-answer', 'h1', '.bp-lead'],
+    },
   }
 }
 
