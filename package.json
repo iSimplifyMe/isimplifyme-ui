@@ -1,6 +1,6 @@
 {
   "name": "@isimplifyme/ui",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
@@ -19,7 +19,8 @@
     "./seo": "./src/seo.tsx",
     "./article-toc": "./src/article-toc.tsx",
     "./image-lightbox": "./src/image-lightbox.tsx",
-    "./related-articles": "./src/related-articles.tsx"
+    "./related-articles": "./src/related-articles.tsx",
+    "./bot-middleware": "./src/bot-middleware.ts"
   },
   "files": [
     "src"
