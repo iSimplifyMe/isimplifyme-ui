@@ -82,7 +82,7 @@ export const BOT_PATTERNS: readonly BotPattern[] = [
   { pattern: /CCBot/i, name: "CCBot", company: "Common Crawl", type: "other" },
 ] as const;
 
-/** Match a User-Agent string against the bot patterns. Returns null if not a bot. */
+/** Match a User-Agent string against the known bot patterns. Returns null if not matched. */
 export function detectBot(userAgent: string | null | undefined): BotMatch | null {
   if (!userAgent) return null;
   for (const bot of BOT_PATTERNS) {
@@ -93,16 +93,42 @@ export function detectBot(userAgent: string | null | undefined): BotMatch | null
   return null;
 }
 
+/**
+ * Generic fallback — catches emerging/unknown bots whose UA contains common
+ * crawler keywords but doesn't match any known pattern. Returned matches are
+ * named "Unknown" so they group together, but the full UA is preserved in
+ * the tracked payload so apex-portal can surface them for manual classification.
+ */
+const UNKNOWN_BOT_RE = /\b(bot|crawler|spider|scraper|fetcher|archiver|indexer|worm|mechanize|slurp)\b/i;
+
+export function detectUnknownBot(userAgent: string | null | undefined): BotMatch | null {
+  if (!userAgent) return null;
+  if (UNKNOWN_BOT_RE.test(userAgent)) {
+    return { name: "Unknown", company: "Unknown", type: "other" };
+  }
+  return null;
+}
+
 export interface TrackBotOptions {
   /** Full webhook URL, e.g. https://apex.isimplifyme.com/api/webhooks/bot-hit */
   webhookUrl: string;
   /** Shared secret sent as x-api-key. If empty or undefined, tracking is skipped. */
   webhookSecret: string | undefined;
+  /**
+   * Optional deployment region identifier, forwarded in the payload as `region`.
+   * Typically `process.env.AWS_REGION` from the calling middleware. Left out of
+   * the package code directly so @isimplifyme/ui doesn't depend on @types/node.
+   */
+  region?: string;
 }
 
 /**
  * Fire-and-forget bot tracking. Call from your middleware — it never throws,
  * never blocks the response, and silently skips non-bot requests.
+ *
+ * Known bots (from BOT_PATTERNS) are classified with name/company/type.
+ * Unknown-but-bot-like UAs (matching UNKNOWN_BOT_RE) are sent as name="Unknown"
+ * with the full UA preserved so apex-portal can surface them for classification.
  */
 export function trackBot(
   req: NextRequest,
@@ -112,11 +138,12 @@ export function trackBot(
   if (!options.webhookSecret) return;
 
   const ua = req.headers.get("user-agent");
-  const bot = detectBot(ua);
+  const bot = detectBot(ua) ?? detectUnknownBot(ua);
   if (!bot) return;
 
   const url = new URL(req.url);
   const now = new Date();
+  const referer = req.headers.get("referer");
 
   const payload = {
     bot: bot.name,
@@ -127,6 +154,11 @@ export function trackBot(
     status: 200,
     hour: now.getUTCHours(),
     timestamp: now.toISOString(),
+    // v1.0.4 extensions
+    fullUA: ua || "",
+    referer: referer || null,
+    region: options.region || "",
+    unknown: bot.name === "Unknown",
   };
 
   event.waitUntil(
