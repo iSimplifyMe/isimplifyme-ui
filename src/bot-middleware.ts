@@ -174,3 +174,126 @@ export function trackBot(
     })
   );
 }
+
+// ─── AI referrer visit tracking (v1.0.5) ──────────────────────────────────
+//
+// Complements bot tracking by recording *human* visitors who arrive from AI
+// answer engines (ChatGPT, Perplexity, Claude, Gemini, etc.). Pairing these
+// with BOTHIT records gives the full causal chain: "bot X crawled page P on
+// day N → a human from engine X arrived at page P on day N+M". That's the
+// actual AI search attribution story for the site.
+
+export type AiReferrerSource =
+  | "chatgpt"
+  | "perplexity"
+  | "claude"
+  | "gemini"
+  | "copilot"
+  | "youcom"
+  | "phind"
+  | "kagi"
+  | "grok";
+
+interface AiReferrerPattern {
+  pattern: RegExp;
+  source: AiReferrerSource;
+  label: string;
+}
+
+const AI_REFERRER_PATTERNS: readonly AiReferrerPattern[] = [
+  { pattern: /(^|\.)chatgpt\.com\b/i, source: "chatgpt", label: "ChatGPT" },
+  { pattern: /(^|\.)chat\.openai\.com\b/i, source: "chatgpt", label: "ChatGPT" },
+  { pattern: /(^|\.)perplexity\.ai\b/i, source: "perplexity", label: "Perplexity" },
+  { pattern: /(^|\.)claude\.ai\b/i, source: "claude", label: "Claude" },
+  { pattern: /(^|\.)gemini\.google\.com\b/i, source: "gemini", label: "Gemini" },
+  { pattern: /(^|\.)bard\.google\.com\b/i, source: "gemini", label: "Gemini" },
+  { pattern: /(^|\.)copilot\.microsoft\.com\b/i, source: "copilot", label: "Microsoft Copilot" },
+  { pattern: /(^|\.)you\.com\b/i, source: "youcom", label: "You.com" },
+  { pattern: /(^|\.)phind\.com\b/i, source: "phind", label: "Phind" },
+  { pattern: /(^|\.)kagi\.com\b/i, source: "kagi", label: "Kagi" },
+  { pattern: /(^|\.)grok\.(com|x\.ai)\b/i, source: "grok", label: "Grok" },
+  { pattern: /(^|\.)x\.ai\b/i, source: "grok", label: "Grok" },
+];
+
+/** Match a Referer URL against the known AI engine patterns. */
+export function detectAiReferrer(
+  referer: string | null | undefined
+): { source: AiReferrerSource; label: string } | null {
+  if (!referer) return null;
+  let host: string;
+  try {
+    host = new URL(referer).hostname;
+  } catch {
+    return null;
+  }
+  for (const ai of AI_REFERRER_PATTERNS) {
+    if (ai.pattern.test(host)) {
+      return { source: ai.source, label: ai.label };
+    }
+  }
+  return null;
+}
+
+export interface TrackAiReferrerVisitOptions {
+  /** Full webhook URL, e.g. https://apex.isimplifyme.com/api/webhooks/ai-ref-hit */
+  webhookUrl: string;
+  /** Shared secret sent as x-api-key. Same value as bot webhook in practice. */
+  webhookSecret: string | undefined;
+  /** Optional deployment region identifier. */
+  region?: string;
+}
+
+/**
+ * Fire-and-forget AI referrer visit tracking. Call from your middleware for
+ * every request — the helper itself skips bots, skips non-browser requests,
+ * and skips requests whose Referer isn't an AI engine.
+ *
+ * The goal is to record one hit per human pageview that came from an AI
+ * answer engine so apex-portal can correlate those visits with the BOTHIT
+ * records from the same engine's crawler (GPTBot ↔ chatgpt.com, etc.).
+ */
+export function trackAiReferrerVisit(
+  req: NextRequest,
+  event: NextFetchEvent,
+  options: TrackAiReferrerVisitOptions
+): void {
+  if (!options.webhookSecret) return;
+
+  const ua = req.headers.get("user-agent");
+  // Skip bots — those are tracked by trackBot(), not here.
+  if (detectBot(ua) || detectUnknownBot(ua)) return;
+  // Require a real browser UA (Mozilla/5.0 prefix is ubiquitous for browsers)
+  if (!ua || !ua.includes("Mozilla")) return;
+
+  const referer = req.headers.get("referer");
+  const ai = detectAiReferrer(referer);
+  if (!ai) return;
+
+  const url = new URL(req.url);
+  const now = new Date();
+
+  const payload = {
+    kind: "ai-ref-visit" as const,
+    source: ai.source,
+    label: ai.label,
+    path: url.pathname,
+    domain: url.hostname,
+    referer: referer || "",
+    hour: now.getUTCHours(),
+    timestamp: now.toISOString(),
+    region: options.region || "",
+  };
+
+  event.waitUntil(
+    fetch(options.webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": options.webhookSecret,
+      },
+      body: JSON.stringify(payload),
+    }).catch(() => {
+      // Silently fail — tracking must never break a page load
+    })
+  );
+}
