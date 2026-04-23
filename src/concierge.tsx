@@ -228,7 +228,11 @@ function serializeTranscript(messages: Message[]): string {
 
 // ── Main component ─────────────────────────────────────────────────────
 
-export default function ConciergeWidget({
+// Exported as both default and named so consumers can use either
+// `import ConciergeWidget from '@isimplifyme/ui/concierge'` (default)
+// or `import { ConciergeWidget } from '@isimplifyme/ui/concierge'` (named).
+// Default re-export lives at the bottom of the file.
+function ConciergeWidget({
   endpoint = '/api/concierge',
   leadEndpoint = '/api/concierge-lead',
   placeholder = 'Ask a question...',
@@ -2440,3 +2444,6 @@ function AppDownloadFormRenderer({
     </div>
   );
 }
+
+export { ConciergeWidget };
+export default ConciergeWidget;
