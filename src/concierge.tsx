@@ -545,17 +545,22 @@ export default function ConciergeWidget({
   // where 0.55-0.85 is appropriate.
   const isDark = resolvedTheme === 'dark';
   const barBg = isDark ? 'rgba(15, 18, 33, 0.55)' : 'rgba(255, 255, 255, 0.55)';
-  // Light mode: 2px transparent border reserves the band for the gradient-clip
-  // trick below. The gradient ring sits in that band. Dark mode keeps its 1px
-  // flat border (iSM/Endsights pick that up when they migrate off ^1.0.x).
+  // Light mode: 2px solid accent stroke at ~50% alpha on focus 35% at rest.
+  // Earlier passes tried a gradient in this band but a horizontal gradient on
+  // a wide flat bar reads as off-balance (visual weight from the send button
+  // shifts perception of "center"). A solid accent stroke is symmetric by
+  // definition and still reads distinctly against cream/white pages.
   const barBorderWidth = isDark ? '1px' : '2px';
-  const barBorder = isDark ? 'rgba(255, 255, 255, 0.08)' : 'transparent';
+  const barBorder = isDark
+    ? 'rgba(255, 255, 255, 0.08)'
+    : `${accentColor}59`;
+  const barBorderFocused = isDark
+    ? 'rgba(255, 255, 255, 0.12)'
+    : `${accentColor}99`;
   const barTopHighlight = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.7)';
   const barTopHighlightFocused = isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.85)';
   // Light-mode shadow: accent-tinted halo sized to actually read on cream/white
-  // pages. Earlier pass used 12–24% alpha which was invisible — MMML's 42%
-  // works there only because MMML sits on dark navy. Cranked to 30–48% so the
-  // halo is visible on SD's ivory hero. Dark mode unchanged.
+  // pages. 30% default, 48% focus. Dark mode unchanged.
   const barShadow = isDark
     ? '0 20px 60px rgba(0, 0, 0, 0.35)'
     : `0 8px 24px ${accentColor}4d, 0 20px 60px rgba(0, 0, 0, 0.12)`;
@@ -563,17 +568,6 @@ export default function ConciergeWidget({
     ? '0 20px 60px rgba(0, 0, 0, 0.45)'
     : `0 12px 32px ${accentColor}7a, 0 20px 60px rgba(0, 0, 0, 0.18)`;
   const focusAccentRing = isDark ? `, 0 0 0 1px ${accentColor}26` : '';
-  // Light-mode gradient-border: inner layer clips to padding-box (55% white
-  // glass fill preserves backdrop-filter), outer layer clips to border-box
-  // (accent→white→accent visible in the 2px band). Horizontal 90deg centered
-  // at 50% so the bar reads bilaterally symmetric — a diagonal (135deg) on a
-  // wide flat bar makes the 4 edges feel off-balance. Focused state darkens
-  // the middle to intensify without breaking symmetry.
-  const barGradientBorder = `linear-gradient(90deg, ${accentColor} 0%, rgba(255, 255, 255, 1) 50%, ${accentColor} 100%)`;
-  const barGradientBorderFocused = `linear-gradient(90deg, ${accentColor} 0%, ${accentColor}66 50%, ${accentColor} 100%)`;
-  const barBackground = isDark
-    ? barBg
-    : `linear-gradient(${barBg}, ${barBg}) padding-box, ${isFocused ? barGradientBorderFocused : barGradientBorder} border-box`;
   const textColor = isDark ? 'rgba(255, 255, 255, 0.92)' : 'rgba(10, 10, 10, 0.88)';
   const placeholderColor = isDark ? 'rgba(255, 255, 255, 0.4)' : 'rgba(10, 10, 10, 0.4)';
   const kbdBg = isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(10, 10, 10, 0.04)';
@@ -1120,10 +1114,10 @@ export default function ConciergeWidget({
           display: 'flex',
           alignItems: 'center',
           width: '100%',
-          background: barBackground,
+          background: barBg,
           backdropFilter: 'blur(32px) saturate(180%)',
           WebkitBackdropFilter: 'blur(32px) saturate(180%)',
-          border: `${barBorderWidth} solid ${barBorder}`,
+          border: `${barBorderWidth} solid ${isFocused ? barBorderFocused : barBorder}`,
           borderRadius: '28px',
           padding: '10px 12px 10px 24px',
           boxShadow: isFocused
