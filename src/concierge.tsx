@@ -537,8 +537,14 @@ export default function ConciergeWidget({
   const showShortcut = !isFocused && !input && !isLoading;
 
   // ── Theme tokens ──
+  // Light-mode bar + panel opacities intentionally kept low (<=0.75) so
+  // the backdrop-filter blur reads as actual frosted glass on white pages.
+  // Earlier versions bumped these to 0.92-0.96 and lost the frost effect
+  // — against a white page background, 96% opaque white is indistinguishable
+  // from solid. Keep dark-mode values unchanged; they land on dark surfaces
+  // where 0.55-0.85 is appropriate.
   const isDark = resolvedTheme === 'dark';
-  const barBg = isDark ? 'rgba(15, 18, 33, 0.55)' : 'rgba(255, 255, 255, 0.96)';
+  const barBg = isDark ? 'rgba(15, 18, 33, 0.55)' : 'rgba(255, 255, 255, 0.55)';
   const barBorder = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
   const barTopHighlight = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.7)';
   const barTopHighlightFocused = isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.85)';
@@ -551,23 +557,29 @@ export default function ConciergeWidget({
   const kbdBg = isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(10, 10, 10, 0.04)';
   const kbdBorder = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(10, 10, 10, 0.12)';
   const kbdColor = isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(10, 10, 10, 0.4)';
-  const panelBg = isDark ? 'rgba(15, 18, 33, 0.85)' : 'rgba(255, 255, 255, 0.92)';
+  const panelBg = isDark ? 'rgba(15, 18, 33, 0.85)' : 'rgba(255, 255, 255, 0.75)';
   const panelBorder = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
   const userBubbleBg = isDark ? 'rgba(255, 255, 255, 0.08)' : '#f7f6f3';
   const userBubbleText = isDark ? 'rgba(255, 255, 255, 0.92)' : '#0a0a0a';
   const aiTextColor = isDark ? 'rgba(255, 255, 255, 0.82)' : '#333';
   const mutedText = isDark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(10, 10, 10, 0.55)';
 
+  // 16px font-size prevents iOS Safari's focus-zoom. 10px radius keeps
+  // fields distinct from the 100px pill button (CTA hierarchy) while
+  // still feeling rounded against the glass panel.
   const inputFieldStyle = {
     width: '100%',
     border: `1px solid ${panelBorder}`,
     background: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
-    borderRadius: '8px',
-    padding: '10px 12px',
-    fontSize: '14px',
+    borderRadius: '10px',
+    padding: '11px 14px',
+    fontSize: '16px',
+    fontWeight: 500,
     color: textColor,
     fontFamily: 'inherit',
     outline: 'none',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+    transition: 'border-color 200ms ease, background 200ms ease',
   } as const;
 
   // Emergency button severity → color map.
@@ -747,6 +759,7 @@ export default function ConciergeWidget({
           {showLeadForm && !leadSubmitted && (
             <div
               style={{
+                position: 'relative', // anchor for the iOS-style dismiss chevron
                 marginTop: '8px',
                 paddingTop: '16px',
                 borderTop: `1px solid ${panelBorder}`,
@@ -755,115 +768,192 @@ export default function ConciergeWidget({
                 gap: '10px',
               }}
             >
-              {/* Intro */}
-              <div style={{ fontSize: '15px', fontWeight: 600, color: aiTextColor, lineHeight: 1.4 }}>
+              {/* iOS-style dismiss chevron — centered, subtle. Collapses the
+                  form and returns the user to the conversation. Matches the
+                  iOS sheet-dismiss affordance users already know. */}
+              <button
+                type="button"
+                onClick={() => setShowLeadForm(false)}
+                aria-label="Dismiss — return to the conversation"
+                style={{
+                  position: 'absolute',
+                  top: '8px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: '34px',
+                  height: '20px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'transparent',
+                  border: `1px solid ${panelBorder}`,
+                  borderRadius: '10px',
+                  color: mutedText,
+                  cursor: 'pointer',
+                  transition: 'color 200ms ease, background 200ms ease, border-color 200ms ease',
+                  opacity: 0.7,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.opacity = '1';
+                  e.currentTarget.style.color = accentColor;
+                  e.currentTarget.style.borderColor = `${accentColor}55`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = '0.7';
+                  e.currentTarget.style.color = mutedText;
+                  e.currentTarget.style.borderColor = panelBorder;
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <polyline
+                    points="6 9 12 15 18 9"
+                    stroke="currentColor"
+                    strokeWidth="2.25"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+
+              {/* Intro — display font via CSS var (sites set --font-display)
+                  with fallback to the inherited sans. Tight tracking matches
+                  the h1-h6 convention used across client sites (~-0.02em). */}
+              <div style={{
+                fontSize: '17px',
+                fontWeight: 700,
+                color: textColor,
+                lineHeight: 1.2,
+                letterSpacing: '-0.02em',
+                fontFamily: 'var(--font-display, inherit)',
+                margin: '18px 40px 0 0',
+              }}>
                 {activeIntro}
               </div>
 
-              {/* SLA line (elaborated only) */}
+              {/* SLA line — eyebrow pattern: small uppercase w/ 0.18em tracking
+                  in accent color. Echoes .eyebrow from each site's globals.css. */}
               {activeSlaLabel && (
-                <div style={{ fontSize: '12px', color: mutedText, lineHeight: 1.4 }}>
+                <div style={{
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  color: accentColor,
+                  lineHeight: 1.45,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.18em',
+                  margin: '2px 0 8px',
+                }}>
                   {activeSlaLabel}
                 </div>
               )}
 
               {/* Name — required on elaborated + HV paths */}
               {(useElaborated || useHvEarly) && (
-                <input
-                  type="text"
-                  value={leadName}
-                  onChange={(e) => setLeadName(e.target.value)}
-                  placeholder="Full name"
-                  disabled={leadSubmitting}
-                  style={inputFieldStyle}
-                  autoComplete="name"
-                />
+                <FormField label="Full name" textColor={textColor} mutedText={mutedText}>
+                  <input
+                    type="text"
+                    value={leadName}
+                    onChange={(e) => setLeadName(e.target.value)}
+                    placeholder="Your name"
+                    disabled={leadSubmitting}
+                    style={inputFieldStyle}
+                    autoComplete="name"
+                  />
+                </FormField>
               )}
               {useLegacyFallback && (
-                <input
-                  type="text"
-                  value={leadName}
-                  onChange={(e) => setLeadName(e.target.value)}
-                  placeholder="Name (optional)"
-                  disabled={leadSubmitting}
-                  style={inputFieldStyle}
-                  autoComplete="name"
-                />
+                <FormField label="Name (optional)" textColor={textColor} mutedText={mutedText}>
+                  <input
+                    type="text"
+                    value={leadName}
+                    onChange={(e) => setLeadName(e.target.value)}
+                    placeholder="Your name"
+                    disabled={leadSubmitting}
+                    style={inputFieldStyle}
+                    autoComplete="name"
+                  />
+                </FormField>
               )}
 
               {/* Phone — required on elaborated + HV paths, optional on legacy */}
               {(useElaborated || useHvEarly) && (
-                <input
-                  type="tel"
-                  value={leadPhone}
-                  onChange={(e) => setLeadPhone(e.target.value)}
-                  placeholder="Phone"
-                  disabled={leadSubmitting}
-                  style={inputFieldStyle}
-                  autoComplete="tel"
-                />
+                <FormField label="Phone" textColor={textColor} mutedText={mutedText}>
+                  <input
+                    type="tel"
+                    value={leadPhone}
+                    onChange={(e) => setLeadPhone(e.target.value)}
+                    placeholder="(___) ___-____"
+                    disabled={leadSubmitting}
+                    style={inputFieldStyle}
+                    autoComplete="tel"
+                  />
+                </FormField>
               )}
               {useLegacyFallback && (
-                <input
-                  type="tel"
-                  value={leadPhone}
-                  onChange={(e) => setLeadPhone(e.target.value)}
-                  placeholder="Phone (optional)"
-                  disabled={leadSubmitting}
-                  style={inputFieldStyle}
-                  autoComplete="tel"
-                />
+                <FormField label="Phone (optional)" textColor={textColor} mutedText={mutedText}>
+                  <input
+                    type="tel"
+                    value={leadPhone}
+                    onChange={(e) => setLeadPhone(e.target.value)}
+                    placeholder="(___) ___-____"
+                    disabled={leadSubmitting}
+                    style={inputFieldStyle}
+                    autoComplete="tel"
+                  />
+                </FormField>
               )}
 
               {/* Property address — AOE only (require_address flag) */}
               {requireAddress && (
-                <input
-                  type="text"
-                  value={leadAddress}
-                  onChange={(e) => setLeadAddress(e.target.value)}
-                  placeholder="Property address"
-                  disabled={leadSubmitting}
-                  style={inputFieldStyle}
-                  autoComplete="street-address"
-                />
+                <FormField label="Property address" textColor={textColor} mutedText={mutedText}>
+                  <input
+                    type="text"
+                    value={leadAddress}
+                    onChange={(e) => setLeadAddress(e.target.value)}
+                    placeholder="Street, city, ZIP"
+                    disabled={leadSubmitting}
+                    style={inputFieldStyle}
+                    autoComplete="street-address"
+                  />
+                </FormField>
               )}
 
               {/* Email — hidden on HV-early (we want to minimize friction) */}
               {showEmailField && (
-                <input
-                  type="email"
-                  value={leadEmail}
-                  onChange={(e) => setLeadEmail(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      submitLead();
-                    }
-                  }}
-                  placeholder={useElaborated ? 'Email' : 'Email'}
-                  disabled={leadSubmitting}
-                  style={inputFieldStyle}
-                  autoComplete="email"
-                />
+                <FormField label="Email" textColor={textColor} mutedText={mutedText}>
+                  <input
+                    type="email"
+                    value={leadEmail}
+                    onChange={(e) => setLeadEmail(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        submitLead();
+                      }
+                    }}
+                    placeholder="you@example.com"
+                    disabled={leadSubmitting}
+                    style={inputFieldStyle}
+                    autoComplete="email"
+                  />
+                </FormField>
               )}
 
               {/* "Anything else?" textarea (elaborated only, optional) */}
               {showNotesField && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <FormField
+                  label="Anything else? (optional)"
+                  textColor={textColor}
+                  mutedText={mutedText}
+                  helper={leadForm?.notes_helper}
+                >
                   <textarea
                     value={leadNotes}
                     onChange={(e) => setLeadNotes(e.target.value)}
-                    placeholder="Anything else? (optional)"
                     disabled={leadSubmitting}
                     rows={2}
-                    style={{ ...inputFieldStyle, resize: 'vertical', minHeight: '48px' }}
+                    style={{ ...inputFieldStyle, resize: 'vertical', minHeight: '52px' }}
                   />
-                  {leadForm?.notes_helper && (
-                    <div style={{ fontSize: '11px', color: mutedText, lineHeight: 1.4, paddingLeft: '2px' }}>
-                      {leadForm.notes_helper}
-                    </div>
-                  )}
-                </div>
+                </FormField>
               )}
 
               {/* Include-transcript checkbox (elaborated, non-HV, messages present) */}
@@ -872,11 +962,16 @@ export default function ConciergeWidget({
                   style={{
                     display: 'flex',
                     alignItems: 'flex-start',
-                    gap: '8px',
+                    gap: '10px',
+                    marginTop: '6px',
+                    padding: '10px 12px',
+                    background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+                    border: `1px solid ${panelBorder}`,
+                    borderRadius: '10px',
                     fontSize: '13px',
-                    color: aiTextColor,
+                    color: textColor,
                     cursor: 'pointer',
-                    padding: '4px 2px',
+                    lineHeight: 1.45,
                   }}
                 >
                   <input
@@ -884,12 +979,21 @@ export default function ConciergeWidget({
                     checked={includeTranscript}
                     onChange={(e) => setIncludeTranscript(e.target.checked)}
                     disabled={leadSubmitting}
-                    style={{ marginTop: '3px', cursor: 'pointer' }}
+                    style={{
+                      marginTop: '2px',
+                      width: '16px',
+                      height: '16px',
+                      accentColor: accentColor,
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                    }}
                   />
-                  <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span>Include this conversation ({messages.length} {messages.length === 1 ? 'message' : 'messages'})</span>
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <span style={{ fontWeight: 500 }}>
+                      Include this conversation ({messages.length} {messages.length === 1 ? 'message' : 'messages'})
+                    </span>
                     {leadForm?.transcript_checkbox_helper && (
-                      <span style={{ fontSize: '11px', color: mutedText }}>
+                      <span style={{ fontSize: '11px', color: mutedText, fontWeight: 400 }}>
                         {leadForm.transcript_checkbox_helper}
                       </span>
                     )}
@@ -897,39 +1001,67 @@ export default function ConciergeWidget({
                 </label>
               )}
 
-              {/* Submit */}
+              {/* Submit — pill button (matches .btn-primary in every site's
+                  globals.css: 100px radius, 14px 32px padding, 700 weight). */}
               <button
                 onClick={submitLead}
                 disabled={leadSubmitting}
                 type="button"
                 style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  marginTop: '8px',
                   background: accentColor,
                   color: '#fff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '12px 16px',
-                  fontSize: '14px',
-                  fontWeight: 600,
+                  border: `1px solid ${accentColor}`,
+                  borderRadius: 'var(--radius-pill, 100px)',
+                  padding: '14px 32px',
+                  fontSize: '0.95rem',
+                  fontWeight: 700,
+                  lineHeight: 1,
                   fontFamily: 'inherit',
                   cursor: leadSubmitting ? 'default' : 'pointer',
                   opacity: leadSubmitting ? 0.5 : 1,
-                  transition: 'opacity 200ms ease',
+                  boxShadow: `0 10px 30px -8px ${accentColor}40`,
+                  transition: 'all 300ms cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+                onMouseEnter={(e) => {
+                  if (!leadSubmitting) {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = `0 14px 36px -10px ${accentColor}55`;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = `0 10px 30px -8px ${accentColor}40`;
                 }}
               >
                 {leadSubmitting ? 'Sending…' : activeSubmitLabel}
               </button>
 
-              {/* Secondary CTA — tel: link or similar (elaborated only) */}
+              {/* Secondary CTA — tel: link or similar (elaborated only).
+                  Eyebrow treatment: uppercase 10px, 0.18em tracking, muted →
+                  accent on hover. Matches the site's .eyebrow convention. */}
               {activeSecondaryCta && (
                 <a
                   href={activeSecondaryCta.href}
                   style={{
-                    fontSize: '13px',
+                    display: 'block',
+                    marginTop: '2px',
+                    fontSize: '10px',
+                    fontWeight: 700,
                     color: mutedText,
                     textAlign: 'center',
                     textDecoration: 'none',
-                    padding: '4px',
+                    padding: '6px 4px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.18em',
+                    transition: 'color 200ms ease',
                   }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = accentColor; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = mutedText; }}
                 >
                   {activeSecondaryCta.label}
                 </a>
@@ -1065,5 +1197,55 @@ export default function ConciergeWidget({
         </button>
       </div>
     </div>
+  );
+}
+
+// ── Internal form-field helper ────────────────────────────────────────
+// Wraps each input with an eyebrow-style label + optional helper line,
+// matching the .eyebrow / .contact-home-meta dt pattern every client
+// site already uses (10px 700 uppercase, 0.18em tracking). Keeps the
+// main component render lean.
+function FormField({
+  label,
+  helper,
+  children,
+  textColor,
+  mutedText,
+}: {
+  label: string;
+  helper?: string;
+  children: React.ReactNode;
+  textColor: string;
+  mutedText: string;
+}) {
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+      <span
+        style={{
+          fontSize: '10px',
+          fontWeight: 700,
+          color: mutedText,
+          textTransform: 'uppercase',
+          letterSpacing: '0.18em',
+          lineHeight: 1.4,
+        }}
+      >
+        {label}
+      </span>
+      {children}
+      {helper && (
+        <span
+          style={{
+            fontSize: '11px',
+            fontWeight: 400,
+            color: mutedText,
+            lineHeight: 1.5,
+            marginTop: '2px',
+          }}
+        >
+          {helper}
+        </span>
+      )}
+    </label>
   );
 }
