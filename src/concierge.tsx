@@ -565,10 +565,12 @@ export default function ConciergeWidget({
   const focusAccentRing = isDark ? `, 0 0 0 1px ${accentColor}26` : '';
   // Light-mode gradient-border: inner layer clips to padding-box (55% white
   // glass fill preserves backdrop-filter), outer layer clips to border-box
-  // (accent→white→accent diagonal visible in the 2px band). Alphas pushed to
-  // full-strength accent; white middle at 100% gives the diagonal its shimmer.
-  const barGradientBorder = `linear-gradient(135deg, ${accentColor} 0%, rgba(255, 255, 255, 1) 48%, ${accentColor} 100%)`;
-  const barGradientBorderFocused = `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}cc 48%, ${accentColor} 100%)`;
+  // (accent→white→accent visible in the 2px band). Horizontal 90deg centered
+  // at 50% so the bar reads bilaterally symmetric — a diagonal (135deg) on a
+  // wide flat bar makes the 4 edges feel off-balance. Focused state darkens
+  // the middle to intensify without breaking symmetry.
+  const barGradientBorder = `linear-gradient(90deg, ${accentColor} 0%, rgba(255, 255, 255, 1) 50%, ${accentColor} 100%)`;
+  const barGradientBorderFocused = `linear-gradient(90deg, ${accentColor} 0%, ${accentColor}66 50%, ${accentColor} 100%)`;
   const barBackground = isDark
     ? barBg
     : `linear-gradient(${barBg}, ${barBg}) padding-box, ${isFocused ? barGradientBorderFocused : barGradientBorder} border-box`;
