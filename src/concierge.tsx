@@ -545,13 +545,23 @@ export default function ConciergeWidget({
   // where 0.55-0.85 is appropriate.
   const isDark = resolvedTheme === 'dark';
   const barBg = isDark ? 'rgba(15, 18, 33, 0.55)' : 'rgba(255, 255, 255, 0.55)';
-  const barBorder = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
+  // Light mode: border goes transparent so the gradient ring overlay (rendered
+  // as a positioned child) is the only visible edge. Dark mode keeps the flat
+  // border — iSM/Endsights will pick that up when they migrate off ^1.0.x.
+  const barBorder = isDark ? 'rgba(255, 255, 255, 0.08)' : 'transparent';
   const barTopHighlight = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.7)';
   const barTopHighlightFocused = isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.85)';
-  const barShadow = isDark ? '0 20px 60px rgba(0, 0, 0, 0.35)' : '0 20px 60px rgba(0, 0, 0, 0.12)';
+  // Light-mode shadow stack layers an accent-tinted 1px outer stroke + soft
+  // accent underglow on top of the neutral drop shadow. Gives the bar edge
+  // definition on cream/white hero backgrounds where a flat 6%-black border
+  // was disappearing. Dark mode unchanged.
+  const barShadow = isDark
+    ? '0 20px 60px rgba(0, 0, 0, 0.35)'
+    : `0 0 0 1px ${accentColor}1f, 0 10px 30px ${accentColor}24, 0 20px 60px rgba(0, 0, 0, 0.12)`;
   const barShadowFocused = isDark
     ? '0 20px 60px rgba(0, 0, 0, 0.45)'
-    : '0 20px 60px rgba(0, 0, 0, 0.18)';
+    : `0 0 0 1px ${accentColor}3d, 0 14px 38px ${accentColor}3d, 0 20px 60px rgba(0, 0, 0, 0.18)`;
+  const focusAccentRing = isDark ? `, 0 0 0 1px ${accentColor}26` : '';
   const textColor = isDark ? 'rgba(255, 255, 255, 0.92)' : 'rgba(10, 10, 10, 0.88)';
   const placeholderColor = isDark ? 'rgba(255, 255, 255, 0.4)' : 'rgba(10, 10, 10, 0.4)';
   const kbdBg = isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(10, 10, 10, 0.04)';
@@ -1095,6 +1105,7 @@ export default function ConciergeWidget({
       {/* Command bar */}
       <div
         style={{
+          position: 'relative',
           display: 'flex',
           alignItems: 'center',
           width: '100%',
@@ -1105,12 +1116,34 @@ export default function ConciergeWidget({
           borderRadius: '28px',
           padding: '10px 12px 10px 24px',
           boxShadow: isFocused
-            ? `inset 0 1px 0 ${barTopHighlightFocused}, ${barShadowFocused}, 0 0 0 1px ${accentColor}26`
+            ? `inset 0 1px 0 ${barTopHighlightFocused}, ${barShadowFocused}${focusAccentRing}`
             : `inset 0 1px 0 ${barTopHighlight}, ${barShadow}`,
           transition: 'all 400ms cubic-bezier(0.16, 1, 0.3, 1)',
           transform: isFocused ? 'scale(1.005)' : 'scale(1)',
         }}
       >
+        {/* Light-mode gradient ring — accent → white → accent diagonal stroke,
+            carved by mask-composite so it sits flush in the 1px band at the
+            edge of the bar. Dark mode relies on the flat border instead. */}
+        {!isDark && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              padding: '1px',
+              borderRadius: 'inherit',
+              background: `linear-gradient(135deg, ${accentColor}7a 0%, rgba(255, 255, 255, 0.78) 48%, ${accentColor}7a 100%)`,
+              mask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+              WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+              maskComposite: 'exclude',
+              WebkitMaskComposite: 'xor',
+              pointerEvents: 'none',
+              opacity: isFocused ? 1 : 0.88,
+              transition: 'opacity 300ms cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          />
+        )}
         <input
           ref={inputRef}
           type="text"
