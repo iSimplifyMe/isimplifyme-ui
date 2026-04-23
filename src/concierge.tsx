@@ -562,6 +562,16 @@ export default function ConciergeWidget({
     ? '0 20px 60px rgba(0, 0, 0, 0.45)'
     : `0 0 0 1px ${accentColor}3d, 0 14px 38px ${accentColor}3d, 0 20px 60px rgba(0, 0, 0, 0.18)`;
   const focusAccentRing = isDark ? `, 0 0 0 1px ${accentColor}26` : '';
+  // Light-mode gradient-border trick: two layered backgrounds, the inner one
+  // clipped to padding-box (glass fill, preserves backdrop-filter read) and
+  // the outer one clipped to border-box (accent→white→accent diagonal, only
+  // visible in the 1px border band because the padding-box layer covers
+  // everything else). More robust than mask-composite in React inline styles.
+  const barGradientBorder = `linear-gradient(135deg, ${accentColor}b3 0%, rgba(255, 255, 255, 0.9) 48%, ${accentColor}b3 100%)`;
+  const barGradientBorderFocused = `linear-gradient(135deg, ${accentColor}e6 0%, rgba(255, 255, 255, 1) 48%, ${accentColor}e6 100%)`;
+  const barBackground = isDark
+    ? barBg
+    : `linear-gradient(${barBg}, ${barBg}) padding-box, ${isFocused ? barGradientBorderFocused : barGradientBorder} border-box`;
   const textColor = isDark ? 'rgba(255, 255, 255, 0.92)' : 'rgba(10, 10, 10, 0.88)';
   const placeholderColor = isDark ? 'rgba(255, 255, 255, 0.4)' : 'rgba(10, 10, 10, 0.4)';
   const kbdBg = isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(10, 10, 10, 0.04)';
@@ -1105,11 +1115,10 @@ export default function ConciergeWidget({
       {/* Command bar */}
       <div
         style={{
-          position: 'relative',
           display: 'flex',
           alignItems: 'center',
           width: '100%',
-          background: barBg,
+          background: barBackground,
           backdropFilter: 'blur(32px) saturate(180%)',
           WebkitBackdropFilter: 'blur(32px) saturate(180%)',
           border: `1px solid ${barBorder}`,
@@ -1122,28 +1131,6 @@ export default function ConciergeWidget({
           transform: isFocused ? 'scale(1.005)' : 'scale(1)',
         }}
       >
-        {/* Light-mode gradient ring — accent → white → accent diagonal stroke,
-            carved by mask-composite so it sits flush in the 1px band at the
-            edge of the bar. Dark mode relies on the flat border instead. */}
-        {!isDark && (
-          <div
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              padding: '1px',
-              borderRadius: 'inherit',
-              background: `linear-gradient(135deg, ${accentColor}7a 0%, rgba(255, 255, 255, 0.78) 48%, ${accentColor}7a 100%)`,
-              mask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
-              WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
-              maskComposite: 'exclude',
-              WebkitMaskComposite: 'xor',
-              pointerEvents: 'none',
-              opacity: isFocused ? 1 : 0.88,
-              transition: 'opacity 300ms cubic-bezier(0.16, 1, 0.3, 1)',
-            }}
-          />
-        )}
         <input
           ref={inputRef}
           type="text"
