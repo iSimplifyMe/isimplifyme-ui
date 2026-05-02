@@ -167,6 +167,11 @@ export default function ConciergeWidget({
   // session once shown (decision 3 in the upgrade plan).
   const [emergencyButton, setEmergencyButton] = useState<EmergencyPinnedButton | null>(null);
 
+  // Mobile footer-collision: trigger hides when [data-concierge-footer]
+  // is in viewport. Sites tag their <footer>; behavior is additive (no
+  // change on sites that don't tag).
+  const [footerVisible, setFooterVisible] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
@@ -250,6 +255,25 @@ export default function ConciergeWidget({
   }, [theme]);
 
   const resolvedTheme = theme === 'auto' ? autoTheme : theme;
+
+  // Mobile footer-collision: watch any [data-concierge-footer] element.
+  // When in viewport (mobile only, applied via inline style on the bar),
+  // trigger fades + slides down to clear footer CTAs.
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return;
+    const footers = document.querySelectorAll('[data-concierge-footer]');
+    if (footers.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const anyVisible = entries.some((e) => e.isIntersecting);
+        setFooterVisible(anyVisible);
+      },
+      { rootMargin: '0px', threshold: 0 }
+    );
+    footers.forEach((f) => observer.observe(f));
+    return () => observer.disconnect();
+  }, []);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -609,6 +633,14 @@ export default function ConciergeWidget({
       ? '#ff6b1a'
       : '#1a9ba6';
 
+  // Footer-collision: when a tagged footer is in viewport on mobile and
+  // the panel is closed, slide the bar down + fade so it doesn't cover
+  // footer CTAs (newsletter signup, primary nav, etc.).
+  const isMobile =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(max-width: 767px)').matches;
+  const collidesWithFooter = isMobile && footerVisible && !isOpen;
+
   return (
     <div
       ref={barRef}
@@ -616,7 +648,13 @@ export default function ConciergeWidget({
         position: 'fixed',
         bottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
         left: '50%',
-        transform: 'translateX(-50%)',
+        transform: collidesWithFooter
+          ? 'translate(-50%, 120%)'
+          : 'translateX(-50%)',
+        opacity: collidesWithFooter ? 0 : 1,
+        pointerEvents: collidesWithFooter ? 'none' : 'auto',
+        transition:
+          'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         width: 'calc(100% - 48px)',
         maxWidth: `${maxWidth}px`,
         zIndex: 9999,
