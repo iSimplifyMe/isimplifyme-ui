@@ -83,10 +83,15 @@ export interface ConciergeWidgetProps {
   /** Regulatory disclaimer rendered as a notice band at the top of
    *  the chat panel (below the emergency button if present, above
    *  the message thread). Scrolls with content. Tokens listed in
-   *  `disclaimerHotlines` are bolded inline. */
+   *  `disclaimerHotlines` are bolded inline.
+   *
+   *  When omitted, the widget will use the disclaimer surfaced by
+   *  the SSE `done` event from the persona JSON. Set this prop only
+   *  to override the persona-supplied value. */
   disclaimerOpener?: string;
   /** Phone numbers / shortcodes to bold inside `disclaimerOpener`
-   *  (e.g. ['911', '988']). Pure presentation — no behavior. */
+   *  (e.g. ['911', '988']). Pure presentation — no behavior. Only
+   *  applied when `disclaimerOpener` is set. */
   disclaimerHotlines?: string[];
 }
 
@@ -105,6 +110,10 @@ interface SseDoneEvent {
   lead_form?: LeadFormConfig | null;
   high_value_form?: HighValueFormConfig | null;
   hv_matched?: boolean;
+  // Regulatory disclaimer surfaced from the persona JSON. Renders as
+  // a notice band when present. The `disclaimerOpener` prop takes
+  // precedence so consumers can override per-mount if needed.
+  disclaimer?: { opener: string; hotlines?: string[] } | null;
 }
 interface SseEmergencyEvent {
   type: 'emergency';
@@ -176,6 +185,11 @@ export default function ConciergeWidget({
   // Emergency pinned button — stays persistent for the rest of the
   // session once shown (decision 3 in the upgrade plan).
   const [emergencyButton, setEmergencyButton] = useState<EmergencyPinnedButton | null>(null);
+
+  // Disclaimer surfaced via SSE done event. Stored once on first arrival
+  // and persisted for the session. The `disclaimerOpener` prop takes
+  // precedence over the SSE-supplied value when both are present.
+  const [sseDisclaimer, setSseDisclaimer] = useState<{ opener: string; hotlines?: string[] } | null>(null);
 
   // Mobile footer-collision: trigger hides when [data-concierge-footer]
   // is in viewport. Sites tag their <footer>; behavior is additive (no
@@ -401,6 +415,11 @@ export default function ConciergeWidget({
                 // Initialize transcript-inclusion default from persona
                 if (data.lead_form?.include_transcript_default === false) {
                   setIncludeTranscript(false);
+                }
+                // Capture disclaimer once, on first arrival. Persona-level
+                // config; doesn't change mid-session.
+                if (data.disclaimer && data.disclaimer.opener) {
+                  setSseDisclaimer((current) => current ?? data.disclaimer ?? null);
                 }
               } else if (data.type === 'error') {
                 setError(data.message);
@@ -784,9 +803,11 @@ export default function ConciergeWidget({
           </button>
 
           {/* Regulatory disclaimer — notice band, distinct from
-              persona bubbles. Renders only when host configures
-              `disclaimerOpener`. Hotlines are bolded inline. */}
-          {disclaimerOpener && (
+              persona bubbles. Renders when host configures
+              `disclaimerOpener` OR when the SSE done event surfaces a
+              disclaimer from the persona JSON. Prop wins on conflict.
+              Hotlines are bolded inline. */}
+          {(disclaimerOpener || sseDisclaimer) && (
             <div
               role="note"
               aria-label="AI assistant disclaimer"
@@ -823,15 +844,20 @@ export default function ConciergeWidget({
               </svg>
               <span>
                 {(() => {
-                  const hotlines = disclaimerHotlines ?? [];
-                  if (hotlines.length === 0) return disclaimerOpener;
+                  // Prop overrides SSE-supplied value.
+                  const text = disclaimerOpener ?? sseDisclaimer?.opener ?? '';
+                  const hotlines =
+                    disclaimerOpener
+                      ? disclaimerHotlines ?? []
+                      : sseDisclaimer?.hotlines ?? [];
+                  if (hotlines.length === 0) return text;
                   // Split disclaimer text on each hotline token, bold the matches.
                   const escaped = hotlines.map((h) =>
                     h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
                   );
                   // \b word boundaries so "911" doesn't bold inside "1911".
                   const re = new RegExp(`\\b(${escaped.join('|')})\\b`, 'g');
-                  const parts = disclaimerOpener.split(re);
+                  const parts = text.split(re);
                   return parts.map((p, idx) =>
                     hotlines.includes(p) ? <strong key={idx}>{p}</strong> : p
                   );
