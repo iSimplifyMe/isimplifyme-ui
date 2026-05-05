@@ -80,6 +80,15 @@ export interface ConciergeWidgetProps {
   /** Glass theme — `dark` (default) / `light` / `auto` (luminance
    *  sampling, for sites that don't tag sections with [data-theme]). */
   theme?: 'dark' | 'light' | 'auto';
+  /** Regulatory disclaimer rendered as a sticky notice band at the
+   *  top of the chat panel (below the emergency button if present,
+   *  above the message thread). When set, also enables the truthful
+   *  "I'm an AI" fallback for blocked-injection messages on the
+   *  server. Tokens in `hotlines` are bolded inline. */
+  disclaimerOpener?: string;
+  /** Phone numbers / shortcodes to bold inside `disclaimerOpener`
+   *  (e.g. ['911', '988']). Pure presentation — no behavior. */
+  disclaimerHotlines?: string[];
 }
 
 // ── SSE event shapes ───────────────────────────────────────────────────
@@ -131,6 +140,8 @@ export default function ConciergeWidget({
   accentColor = '#EB1C23',
   maxWidth = 900,
   theme = 'dark',
+  disclaimerOpener,
+  disclaimerHotlines,
 }: ConciergeWidgetProps) {
   // Conversation + session
   const [messages, setMessages] = useState<Message[]>([]);
@@ -772,6 +783,62 @@ export default function ConciergeWidget({
               <polyline points="6 9 12 15 18 9" />
             </svg>
           </button>
+
+          {/* Regulatory disclaimer — sticky notice band, distinct from
+              persona bubbles. Renders only when host configures
+              `disclaimerOpener`. Hotlines are bolded inline. */}
+          {disclaimerOpener && (
+            <div
+              role="note"
+              aria-label="AI assistant disclaimer"
+              style={{
+                margin: '0 -24px 4px',
+                padding: '10px 24px',
+                background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+                borderTop: `1px solid ${panelBorder}`,
+                borderBottom: `1px solid ${panelBorder}`,
+                fontSize: '11.5px',
+                lineHeight: 1.45,
+                letterSpacing: '0.01em',
+                color: isDark ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.66)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px',
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={accentColor}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ flexShrink: 0, marginTop: '2px' }}
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="16" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12.01" y2="8" />
+              </svg>
+              <span>
+                {(() => {
+                  const hotlines = disclaimerHotlines ?? [];
+                  if (hotlines.length === 0) return disclaimerOpener;
+                  // Split disclaimer text on each hotline token, bold the matches.
+                  const escaped = hotlines.map((h) =>
+                    h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                  );
+                  const re = new RegExp(`(${escaped.join('|')})`, 'g');
+                  const parts = disclaimerOpener.split(re);
+                  return parts.map((p, idx) =>
+                    hotlines.includes(p) ? <strong key={idx}>{p}</strong> : p
+                  );
+                })()}
+              </span>
+            </div>
+          )}
 
           {/* Message thread */}
           {messages.map((msg, i) => (
