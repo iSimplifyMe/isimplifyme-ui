@@ -80,11 +80,10 @@ export interface ConciergeWidgetProps {
   /** Glass theme — `dark` (default) / `light` / `auto` (luminance
    *  sampling, for sites that don't tag sections with [data-theme]). */
   theme?: 'dark' | 'light' | 'auto';
-  /** Regulatory disclaimer rendered as a sticky notice band at the
-   *  top of the chat panel (below the emergency button if present,
-   *  above the message thread). When set, also enables the truthful
-   *  "I'm an AI" fallback for blocked-injection messages on the
-   *  server. Tokens in `hotlines` are bolded inline. */
+  /** Regulatory disclaimer rendered as a notice band at the top of
+   *  the chat panel (below the emergency button if present, above
+   *  the message thread). Scrolls with content. Tokens listed in
+   *  `disclaimerHotlines` are bolded inline. */
   disclaimerOpener?: string;
   /** Phone numbers / shortcodes to bold inside `disclaimerOpener`
    *  (e.g. ['911', '988']). Pure presentation — no behavior. */
@@ -784,7 +783,7 @@ export default function ConciergeWidget({
             </svg>
           </button>
 
-          {/* Regulatory disclaimer — sticky notice band, distinct from
+          {/* Regulatory disclaimer — notice band, distinct from
               persona bubbles. Renders only when host configures
               `disclaimerOpener`. Hotlines are bolded inline. */}
           {disclaimerOpener && (
@@ -830,7 +829,8 @@ export default function ConciergeWidget({
                   const escaped = hotlines.map((h) =>
                     h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
                   );
-                  const re = new RegExp(`(${escaped.join('|')})`, 'g');
+                  // \b word boundaries so "911" doesn't bold inside "1911".
+                  const re = new RegExp(`\\b(${escaped.join('|')})\\b`, 'g');
                   const parts = disclaimerOpener.split(re);
                   return parts.map((p, idx) =>
                     hotlines.includes(p) ? <strong key={idx}>{p}</strong> : p
