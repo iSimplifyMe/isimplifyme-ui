@@ -80,6 +80,14 @@ export interface ConciergeWidgetProps {
   /** Glass theme — `dark` (default) / `light` / `auto` (luminance
    *  sampling, for sites that don't tag sections with [data-theme]). */
   theme?: 'dark' | 'light' | 'auto';
+  /** Regulatory disclaimer rendered as a notice band at the top of
+   *  the chat panel (below the emergency button if present, above
+   *  the message thread). Scrolls with content. Tokens listed in
+   *  `disclaimerHotlines` are bolded inline. */
+  disclaimerOpener?: string;
+  /** Phone numbers / shortcodes to bold inside `disclaimerOpener`
+   *  (e.g. ['911', '988']). Pure presentation — no behavior. */
+  disclaimerHotlines?: string[];
 }
 
 // ── SSE event shapes ───────────────────────────────────────────────────
@@ -131,6 +139,8 @@ export default function ConciergeWidget({
   accentColor = '#EB1C23',
   maxWidth = 900,
   theme = 'dark',
+  disclaimerOpener,
+  disclaimerHotlines,
 }: ConciergeWidgetProps) {
   // Conversation + session
   const [messages, setMessages] = useState<Message[]>([]);
@@ -166,6 +176,11 @@ export default function ConciergeWidget({
   // Emergency pinned button — stays persistent for the rest of the
   // session once shown (decision 3 in the upgrade plan).
   const [emergencyButton, setEmergencyButton] = useState<EmergencyPinnedButton | null>(null);
+
+  // Mobile footer-collision: trigger hides when [data-concierge-footer]
+  // is in viewport. Sites tag their <footer>; behavior is additive (no
+  // change on sites that don't tag).
+  const [footerVisible, setFooterVisible] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -250,6 +265,25 @@ export default function ConciergeWidget({
   }, [theme]);
 
   const resolvedTheme = theme === 'auto' ? autoTheme : theme;
+
+  // Mobile footer-collision: watch any [data-concierge-footer] element.
+  // When in viewport (mobile only, applied via inline style on the bar),
+  // trigger fades + slides down to clear footer CTAs.
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return;
+    const footers = document.querySelectorAll('[data-concierge-footer]');
+    if (footers.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const anyVisible = entries.some((e) => e.isIntersecting);
+        setFooterVisible(anyVisible);
+      },
+      { rootMargin: '0px', threshold: 0 }
+    );
+    footers.forEach((f) => observer.observe(f));
+    return () => observer.disconnect();
+  }, []);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -609,6 +643,14 @@ export default function ConciergeWidget({
       ? '#ff6b1a'
       : '#1a9ba6';
 
+  // Footer-collision: when a tagged footer is in viewport on mobile and
+  // the panel is closed, slide the bar down + fade so it doesn't cover
+  // footer CTAs (newsletter signup, primary nav, etc.).
+  const isMobile =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(max-width: 767px)').matches;
+  const collidesWithFooter = isMobile && footerVisible && !isOpen;
+
   return (
     <div
       ref={barRef}
@@ -616,7 +658,13 @@ export default function ConciergeWidget({
         position: 'fixed',
         bottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
         left: '50%',
-        transform: 'translateX(-50%)',
+        transform: collidesWithFooter
+          ? 'translate(-50%, 120%)'
+          : 'translateX(-50%)',
+        opacity: collidesWithFooter ? 0 : 1,
+        pointerEvents: collidesWithFooter ? 'none' : 'auto',
+        transition:
+          'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         width: 'calc(100% - 48px)',
         maxWidth: `${maxWidth}px`,
         zIndex: 9999,
@@ -734,6 +782,63 @@ export default function ConciergeWidget({
               <polyline points="6 9 12 15 18 9" />
             </svg>
           </button>
+
+          {/* Regulatory disclaimer — notice band, distinct from
+              persona bubbles. Renders only when host configures
+              `disclaimerOpener`. Hotlines are bolded inline. */}
+          {disclaimerOpener && (
+            <div
+              role="note"
+              aria-label="AI assistant disclaimer"
+              style={{
+                margin: '0 -24px 4px',
+                padding: '10px 24px',
+                background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+                borderTop: `1px solid ${panelBorder}`,
+                borderBottom: `1px solid ${panelBorder}`,
+                fontSize: '11.5px',
+                lineHeight: 1.45,
+                letterSpacing: '0.01em',
+                color: isDark ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.66)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px',
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={accentColor}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ flexShrink: 0, marginTop: '2px' }}
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="16" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12.01" y2="8" />
+              </svg>
+              <span>
+                {(() => {
+                  const hotlines = disclaimerHotlines ?? [];
+                  if (hotlines.length === 0) return disclaimerOpener;
+                  // Split disclaimer text on each hotline token, bold the matches.
+                  const escaped = hotlines.map((h) =>
+                    h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                  );
+                  // \b word boundaries so "911" doesn't bold inside "1911".
+                  const re = new RegExp(`\\b(${escaped.join('|')})\\b`, 'g');
+                  const parts = disclaimerOpener.split(re);
+                  return parts.map((p, idx) =>
+                    hotlines.includes(p) ? <strong key={idx}>{p}</strong> : p
+                  );
+                })()}
+              </span>
+            </div>
+          )}
 
           {/* Message thread */}
           {messages.map((msg, i) => (
