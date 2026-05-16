@@ -1,0 +1,17 @@
+name: fleetcheck
+
+# Lints this repo against iSimplifyMe fleet rules + security checks.
+# Warn-only: remove the `continue-on-error` line to make it a blocking gate.
+on:
+  pull_request:
+
+jobs:
+  fleetcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: fleetcheck
+        uses: iSimplifyMe/fleetcheck@main
+        with:
+          fail-on: error
+        continue-on-error: true
