@@ -1,0 +1,16 @@
+name: fleetcheck
+
+# Lints this repo against iSimplifyMe fleet rules + security checks.
+# Blocking gate: security/error findings fail CI (pinned to the verified 2026-07-16 baseline).
+on:
+  pull_request:
+
+jobs:
+  fleetcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: fleetcheck
+        uses: iSimplifyMe/fleetcheck@76f7b9c034bf2c3ad948d31575145f939b62915f # v-baseline-2026-07-16
+        with:
+          fail-on: error
