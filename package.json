@@ -1,6 +1,8 @@
 {
   "name": "@isimplifyme/ui",
   "version": "1.1.9",
+  "description": "React/Next.js UI library for iSimplifyMe properties — design system, article layouts, SEO helpers, bot middleware, and the iSM Concierge widget.",
+  "homepage": "https://isimplifyme.com",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
