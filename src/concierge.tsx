@@ -139,6 +139,58 @@ function serializeTranscript(messages: Message[]): string {
     .join('\n\n');
 }
 
+/**
+ * Read a first-party cookie by name and URL-decode it. Returns '' when absent
+ * or when there is no document (SSR / prerender).
+ *
+ * Decoding matters: the pixel writes `_apex_src` URL-encoded, and apex's
+ * `parseAttribution` does a bare `JSON.parse` on whatever it receives. The
+ * existing site proxies get away with not decoding because they read the value
+ * via `request.cookies.get()`, which Next decodes for them — reading
+ * `document.cookie` directly does not, so an encoded value would fail to parse
+ * and every lead would silently record as direct.
+ */
+function readCookie(name: string): string {
+  if (typeof document === 'undefined') return '';
+  const match = document.cookie.match(
+    new RegExp(`(?:^|;\\s*)${name}=([^;]*)`)
+  );
+  if (!match) return '';
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
+
+/**
+ * First-touch attribution for the CHAT request only.
+ *
+ * The chat call is a server-side proxy hop — the site's `/api/concierge`
+ * forwards to apex with a fixed header set and no cookies — so apex cannot
+ * read these itself. `_apex_src` is also first-party on the site's domain and
+ * would never be sent cross-origin to apex.isimplifyme.com regardless. Putting
+ * them in the body is what lets apex attribute the `form: "concierge"` lead it
+ * writes off that stream; without it every one records as source=direct.
+ *
+ * The LEAD-FORM request deliberately does NOT carry these. `/api/concierge-lead`
+ * is same-origin, so the browser sends `_apex_src` with it and the site's route
+ * already reads it off the cookie header and forwards it to
+ * /api/leads/submit — that path has always been attributed. Sending it in the
+ * body there would be dead weight the route drops.
+ *
+ * `_apex_src` is the raw cookie string written by apex's pixel, forwarded in
+ * exactly the shape /api/leads/submit already accepts. `ai_ref` is sent too so
+ * apex's AI-referrer fallback can resolve a source on sites that have the
+ * Prism edge function but not the pixel.
+ */
+function attributionFields(): { attribution: string; aiRef: string } {
+  return {
+    attribution: readCookie('_apex_src'),
+    aiRef: readCookie('ai_ref'),
+  };
+}
+
 // ── Main component ─────────────────────────────────────────────────────
 
 export default function ConciergeWidget({
@@ -350,6 +402,7 @@ export default function ConciergeWidget({
           message: text,
           pathname: window.location.pathname,
           sessionId,
+          ...attributionFields(),
         }),
       });
 
