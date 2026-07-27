@@ -140,15 +140,27 @@ function serializeTranscript(messages: Message[]): string {
 }
 
 /**
- * Read a first-party cookie by name. Returns '' when absent or when there is
- * no document (SSR / prerender).
+ * Read a first-party cookie by name and URL-decode it. Returns '' when absent
+ * or when there is no document (SSR / prerender).
+ *
+ * Decoding matters: the pixel writes `_apex_src` URL-encoded, and apex's
+ * `parseAttribution` does a bare `JSON.parse` on whatever it receives. The
+ * existing site proxies get away with not decoding because they read the value
+ * via `request.cookies.get()`, which Next decodes for them — reading
+ * `document.cookie` directly does not, so an encoded value would fail to parse
+ * and every lead would silently record as direct.
  */
 function readCookie(name: string): string {
   if (typeof document === 'undefined') return '';
   const match = document.cookie.match(
     new RegExp(`(?:^|;\\s*)${name}=([^;]*)`)
   );
-  return match ? match[1] : '';
+  if (!match) return '';
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
 }
 
 /**
