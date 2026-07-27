@@ -1,0 +1,22 @@
+name: fleetcheck
+
+# Lints this repo against iSimplifyMe fleet rules + security checks.
+# Warn-only: remove the `continue-on-error` line to make it a blocking gate.
+#
+# `main` branch protection has required the `fleetcheck` context since it was
+# set up, but this repo never had the workflow that produces it — so the check
+# could never report and every PR was unmergeable without an admin bypass.
+# Copied verbatim from the fleet standard (anita-patel-md, apex-portal).
+on:
+  pull_request:
+
+jobs:
+  fleetcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: fleetcheck
+        uses: iSimplifyMe/fleetcheck@main
+        with:
+          fail-on: error
+        continue-on-error: true
