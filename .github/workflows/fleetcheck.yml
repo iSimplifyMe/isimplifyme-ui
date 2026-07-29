@@ -1,0 +1,22 @@
+name: fleetcheck
+
+# Lints this repo against iSimplifyMe fleet rules + security checks.
+# BLOCKING: findings at error/security severity fail CI. `fleetcheck` is a
+# required status check on main — this workflow is what reports it (PRs #5/#6/#7
+# tried to add it but every run died resolving the action; the gate sat dead and
+# Drift Sentinel gate-availability has been red since 2026-07-26 over it).
+# Refs pinned per the fleet no-floating-refs standard. Pinned to the v0.2.0
+# TAG commit (9cda1a4c, reachable) — NOT the apex/nexus 155c1247 pin, which is
+# unreachable from any branch/tag in iSimplifyMe/fleetcheck as of 2026-07-29.
+on:
+  pull_request:
+
+jobs:
+  fleetcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: fleetcheck
+        uses: iSimplifyMe/fleetcheck@9cda1a4ce31e517bbc7e6647f1faeea02b63438a # v0.2.0
+        with:
+          fail-on: error
