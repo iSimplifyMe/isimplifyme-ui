@@ -18,6 +18,6 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: fleetcheck
-        uses: iSimplifyMe/fleetcheck@ed3aa98faafa45fc2b5baa0f5f99b57a4ba7290f # v0.2.0
+        uses: iSimplifyMe/fleetcheck@79c762aa70559030e7bc2d7c92ceeaca8f90a683 # 2026-08-05: waves 1-4 + fork-identity-consistency
         with:
           fail-on: error
