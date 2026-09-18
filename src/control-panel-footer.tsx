@@ -158,7 +158,10 @@ export function ControlPanelFooter({ activeSite }: ControlPanelFooterProps) {
             <span className="font-mono text-[10px] uppercase tracking-wider text-[#57534e]">
               &copy; {new Date().getFullYear()} Simplified Media Network
             </span>
-            <nav className="flex gap-6">
+            {/* Seven links in one row measure 469 px — wider than a phone, which
+                stretched every page on the consuming sites. Wrap instead. rowGap is
+                inline because a site only gets the Tailwind classes it scans for. */}
+            <nav className="flex flex-wrap justify-center gap-6" style={{ rowGap: '0.5rem' }}>
               {footerLinks.map((link) => (
                 <a
                   key={link.label}
