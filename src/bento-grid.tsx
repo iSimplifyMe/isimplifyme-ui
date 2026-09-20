@@ -1,6 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
+import Image from 'next/image'
 // bentoCard and stagger imports removed — individual cards now use whileInView with index-based delay
 import type { ReactNode } from 'react'
 
@@ -16,6 +17,9 @@ export interface BentoItem {
   backgroundImage?: string
   /** Alt text for background image */
   backgroundAlt?: string
+  /** `sizes` for the background image. Default assumes a 4-column grid where a
+   *  card may span 2. Set it per item when the span is known. */
+  imageSizes?: string
   /** Accent color for hover effects: 'fallout' | 'cobalt' | 'hazard' */
   accentColor?: 'fallout' | 'cobalt' | 'hazard'
 }
@@ -90,10 +94,15 @@ export function BentoGrid({ items, className = '' }: BentoGridProps) {
             {/* Background image layer */}
             {item.backgroundImage && (
               <>
-                <img
+                {/* next/image, not a raw <img>: this fetched the source file at
+                    full resolution to paint a ~312px tile. See related-articles
+                    for the measurement that prompted the change. */}
+                <Image
                   src={item.backgroundImage}
                   alt={item.backgroundAlt ?? ''}
-                  className="absolute inset-0 h-full w-full object-cover transition-all duration-700 ease-out group-hover/card:scale-105 group-hover/card:brightness-110"
+                  fill
+                  sizes={item.imageSizes ?? '(min-width: 1024px) 50vw, (min-width: 640px) 50vw, 100vw'}
+                  className="object-cover transition-all duration-700 ease-out group-hover/card:scale-105 group-hover/card:brightness-110"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#141414]/75 to-[#141414]/40" />
               </>

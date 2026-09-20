@@ -1,6 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
+import Image from 'next/image'
 
 interface RelatedPost {
   title: string
@@ -16,10 +17,14 @@ export function RelatedArticles({
   posts,
   heading = 'Related Articles',
   accentColor = 'cobalt',
+  /** Matches the default 1 / 2 / 3-column grid below. Override if a consumer
+   *  renders this inside a narrower container. */
+  imageSizes = '(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw',
 }: {
   posts: RelatedPost[]
   heading?: string
   accentColor?: 'cobalt' | 'hazard' | 'fallout'
+  imageSizes?: string
 }) {
   if (posts.length === 0) return null
 
@@ -51,10 +56,17 @@ export function RelatedArticles({
             <a href={`/${post.slug}`} className="group block">
               {post.image && (
                 <div className="relative aspect-[16/10] overflow-hidden rounded-xl mb-4">
-                  <img
+                  {/* next/image, not a raw <img>: this rendered the source file
+                      at full resolution into a ~400px thumbnail. Measured
+                      2026-09-19 on endsights.com/roblox-tycoon-games — 15.6 MB
+                      of images on one article page, with single files at
+                      1.9 MB. Every site on the package paid it. */}
+                  <Image
                     src={post.image}
-                    alt={post.title}
-                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.07]"
+                    alt=""
+                    fill
+                    sizes={imageSizes}
+                    className="object-cover transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.07]"
                   />
                 </div>
               )}
