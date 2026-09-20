@@ -73,6 +73,20 @@ export interface ConciergeWidgetProps {
   leadEndpoint?: string;
   /** Input placeholder. */
   placeholder?: string;
+  /** Accessible name for the input. Defaults to `placeholder`, and that
+   *  default is the point: the placeholder is the ONLY visible label this
+   *  control has, so WCAG 2.5.3 (Label in Name) requires the accessible
+   *  name to contain it. A hardcoded name that ignores the host's wording
+   *  means a speech-input user who says what they can SEE — "ask how it
+   *  works" — addresses a control the machine calls something else.
+   *
+   *  Pass this only to say MORE than the placeholder does; whatever you
+   *  pass should still contain the placeholder text.
+   *
+   *  A host that deliberately renders NO placeholder gets the old literal
+   *  back rather than an unnamed input — no name at all is worse than a
+   *  generic one. */
+  inputAriaLabel?: string;
   /** Send button fill color. */
   accentColor?: string;
   /** Bar width. Default 900px matches the iSM reference. */
@@ -137,6 +151,27 @@ interface SseErrorEvent {
   message: string;
 }
 type SseEvent = SseTokenEvent | SseDoneEvent | SseEmergencyEvent | SseErrorEvent;
+
+/**
+ * The disclaimer band's style while it has nothing to say.
+ *
+ * `position: absolute` is load-bearing twice over. It keeps the element in
+ * the accessibility tree — which `display: none` would not, and an
+ * unrendered live region announces nothing ever — and it takes the element
+ * out of flex layout, so the panel's `gap: 12px` does not reserve a slot
+ * for an empty band. The rest is the standard visually-hidden recipe.
+ */
+const EMPTY_LIVE_REGION_STYLE = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  overflow: 'hidden',
+  clipPath: 'inset(50%)',
+  whiteSpace: 'nowrap',
+  border: 0,
+  padding: 0,
+  margin: '-1px',
+} as const;
 
 // ── Utilities ──────────────────────────────────────────────────────────
 
@@ -212,6 +247,7 @@ export default function ConciergeWidget({
   endpoint = '/api/concierge',
   leadEndpoint = '/api/concierge-lead',
   placeholder = 'Ask a question...',
+  inputAriaLabel,
   accentColor = '#EB1C23',
   maxWidth = 900,
   theme = 'dark',
@@ -680,6 +716,10 @@ export default function ConciergeWidget({
   // clips mid-word.
   const showShortcut = !isFocused && !input && !isLoading && !isNarrow;
 
+  // The band's live region mounts with the panel and stays; this only says
+  // whether it currently has anything to announce.
+  const hasDisclaimer = Boolean(disclaimerOpener || sseDisclaimer);
+
   // ── Theme tokens ──
   // Light-mode bar + panel opacities intentionally kept low (<=0.75) so
   // the backdrop-filter blur reads as actual frosted glass on white pages.
@@ -897,26 +937,45 @@ export default function ConciergeWidget({
               persona bubbles. Renders when host configures
               `disclaimerOpener` OR when the SSE done event surfaces a
               disclaimer from the persona JSON. Prop wins on conflict.
-              Hotlines are bolded inline. */}
-          {(disclaimerOpener || sseDisclaimer) && (
-            <div
-              role="note"
-              aria-label="AI assistant disclaimer"
-              style={{
-                margin: '0 -24px 4px',
-                padding: '10px 24px',
-                background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
-                borderTop: `1px solid ${panelBorder}`,
-                borderBottom: `1px solid ${panelBorder}`,
-                fontSize: '11.5px',
-                lineHeight: 1.45,
-                letterSpacing: '0.01em',
-                color: isDark ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.66)',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '8px',
-              }}
-            >
+              Hotlines are bolded inline.
+
+              ⚡ ALWAYS MOUNTED, and that is the a11y fix, not the
+              `aria-live` beside it. A live region has to be in the document
+              BEFORE its content arrives — a region inserted together with
+              its text is a new node, not a change to an observed one, and
+              screen readers routinely say nothing. The `sseDisclaimer` path
+              is exactly that case: the band appears mid-session, on the
+              done event of the first answer.
+
+              Empty, it is `position: absolute`, which is doing real work:
+              an absolutely-positioned child is NOT a flex item, so the
+              panel's `gap: 12px` skips it. A merely zero-sized child would
+              still take its gap and push the thread down 12px. */}
+          <div
+            role="note"
+            aria-live="polite"
+            aria-label={hasDisclaimer ? 'AI assistant disclaimer' : undefined}
+            style={
+              hasDisclaimer
+                ? {
+                    margin: '0 -24px 4px',
+                    padding: '10px 24px',
+                    background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+                    borderTop: `1px solid ${panelBorder}`,
+                    borderBottom: `1px solid ${panelBorder}`,
+                    fontSize: '11.5px',
+                    lineHeight: 1.45,
+                    letterSpacing: '0.01em',
+                    color: isDark ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.66)',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '8px',
+                  }
+                : EMPTY_LIVE_REGION_STYLE
+            }
+          >
+            {hasDisclaimer && (
+              <>
               <svg
                 width="14"
                 height="14"
@@ -954,8 +1013,9 @@ export default function ConciergeWidget({
                   );
                 })()}
               </span>
-            </div>
-          )}
+              </>
+            )}
+          </div>
 
           {/* Message thread */}
           {messages.map((msg, i) => (
@@ -1384,7 +1444,7 @@ export default function ConciergeWidget({
             }
           }}
           placeholder={placeholder}
-          aria-label="Chat with concierge"
+          aria-label={inputAriaLabel || placeholder || 'Chat with concierge'}
           style={{
             flex: 1,
             border: 'none',
