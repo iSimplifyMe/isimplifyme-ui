@@ -23,7 +23,7 @@
  * apex-portal /api/leads/submit.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -93,6 +93,19 @@ export interface ConciergeWidgetProps {
    *  (e.g. ['911', '988']). Pure presentation — no behavior. Only
    *  applied when `disclaimerOpener` is set. */
   disclaimerHotlines?: string[];
+  /** Decorative node rendered at the head of the command bar, before
+   *  the input — a brand sprite, mark, or avatar. Omit it and the bar
+   *  renders exactly as it always has, including its 24px left padding;
+   *  supply one and the padding drops to 12px so the node sits where
+   *  the text used to start.
+   *
+   *  PURELY DECORATIVE. It is wrapped in `aria-hidden` and is not
+   *  focusable, because the input already carries the accessible name
+   *  for this control and a second announced element here would read
+   *  as a separate widget. Do not pass anything interactive, and do
+   *  not pass anything that carries meaning the sighted user gets and
+   *  the screen-reader user does not. */
+  leading?: ReactNode;
 }
 
 // ── SSE event shapes ───────────────────────────────────────────────────
@@ -202,6 +215,7 @@ export default function ConciergeWidget({
   theme = 'dark',
   disclaimerOpener,
   disclaimerHotlines,
+  leading,
 }: ConciergeWidgetProps) {
   // Conversation + session
   const [messages, setMessages] = useState<Message[]>([]);
@@ -1303,7 +1317,10 @@ export default function ConciergeWidget({
           WebkitBackdropFilter: 'blur(32px) saturate(180%)',
           border: `${barBorderWidth} solid ${isFocused ? barBorderFocused : barBorder}`,
           borderRadius: '28px',
-          padding: '10px 12px 10px 24px',
+          // 24px is the bar's own optical inset for text starting at the
+          // edge. A leading node supplies its own visual mass, so it takes
+          // the smaller inset and the text lands where it already was.
+          padding: leading ? '10px 12px' : '10px 12px 10px 24px',
           boxShadow: isFocused
             ? `inset 0 1px 0 ${barTopHighlightFocused}, ${barShadowFocused}${focusAccentRing}`
             : `inset 0 1px 0 ${barTopHighlight}, ${barShadow}`,
@@ -1311,6 +1328,24 @@ export default function ConciergeWidget({
           transform: isFocused ? 'scale(1.005)' : 'scale(1)',
         }}
       >
+        {leading && (
+          <span
+            aria-hidden="true"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              flex: 'none',
+              marginRight: '12px',
+              // The bar animates on focus; a decorative node should ride
+              // that transform rather than fight it for a frame.
+              pointerEvents: 'none',
+              userSelect: 'none',
+            }}
+          >
+            {leading}
+          </span>
+        )}
+
         <input
           ref={inputRef}
           type="text"
