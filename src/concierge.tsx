@@ -168,11 +168,13 @@ function readCookie(name: string): string {
   const match = document.cookie.match(
     new RegExp(`(?:^|;\\s*)${name}=([^;]*)`)
   );
-  if (!match) return '';
+  const value = match?.[1];
+  if (value === undefined) return '';
   try {
-    return decodeURIComponent(match[1]);
+    return decodeURIComponent(value);
   } catch {
-    return match[1];
+    // Malformed percent-encoding — hand back the raw value rather than ''.
+    return value;
   }
 }
 
@@ -278,16 +280,20 @@ export default function ConciergeWidget({
 
     function parseRgba(color: string): [number, number, number, number] | null {
       const m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-      if (!m) return null;
-      return [+m[1], +m[2], +m[3], m[4] !== undefined ? +m[4] : 1];
+      const [, r, g, b, a] = m ?? [];
+      if (r === undefined || g === undefined || b === undefined) return null;
+      return [+r, +g, +b, a !== undefined ? +a : 1];
     }
 
     function luminance(r: number, g: number, b: number): number {
-      const [rs, gs, bs] = [r, g, b].map((c) => {
+      // A mapped array is `number[]`, not a 3-tuple, so destructuring it
+      // yields `number | undefined` under noUncheckedIndexedAccess. Mapping
+      // each channel keeps the arity in the types.
+      const srgb = (c: number) => {
         const s = c / 255;
         return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-      });
-      return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+      };
+      return 0.2126 * srgb(r) + 0.7152 * srgb(g) + 0.0722 * srgb(b);
     }
 
     function sampleBackground(el: Element): 'dark' | 'light' {

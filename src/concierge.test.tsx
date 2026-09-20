@@ -114,3 +114,40 @@ describe('with a leading node', () => {
     expect(slot.style.pointerEvents).toBe('none');
   });
 });
+
+describe('auto theme — the colour parsing these refactors touched', () => {
+  // parseRgba and luminance were rewritten to satisfy
+  // noUncheckedIndexedAccess (gridiron is the first consumer strict enough
+  // to typecheck this package's source). Neither is exported, so the honest
+  // test is the observable one: does auto-theme still TELL THE TWO APART?
+  function barBackgroundOn(bodyColor: string) {
+    // jsdom implements no hit-testing; the auto path samples whatever sits
+    // under the bar, which on a real page is the section behind it.
+    (document as unknown as { elementFromPoint: () => Element })
+      .elementFromPoint = () => document.body;
+    document.body.style.backgroundColor = bodyColor;
+    const { bar } = render({ theme: 'auto' });
+    return bar.style.background;
+  }
+
+  it('resolves a dark page differently from a light one', () => {
+    const onDark = barBackgroundOn('rgb(14, 15, 19)');
+    act(() => root.unmount());
+    container.remove();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const onLight = barBackgroundOn('rgb(247, 247, 245)');
+
+    expect(onDark).not.toBe('');
+    expect(onLight).not.toBe('');
+    // If parseRgba returned null for either, both would land on the same
+    // fallback and this would pass vacuously — so assert they DIFFER.
+    expect(onDark).not.toBe(onLight);
+  });
+
+  it('survives a background colour it cannot parse', () => {
+    const bg = barBackgroundOn('color(display-p3 0.1 0.1 0.1)');
+    expect(bg).not.toBe('');
+  });
+});
