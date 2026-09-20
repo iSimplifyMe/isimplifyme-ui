@@ -11,6 +11,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import ConciergeWidget from './concierge';
 
+/** Flips the stubbed matchMedia so a test can render at phone width. */
+const NARROW = { value: false };
+
 let container: HTMLDivElement;
 let root: Root;
 
@@ -18,11 +21,12 @@ let root: Root;
 // network, so a stub keeps the render deterministic — a real fetch would make
 // these tests flaky for reasons that have nothing to do with the slot.
 beforeEach(() => {
+  NARROW.value = false;
   // jsdom ships no matchMedia; the widget reads it to decide the mobile
   // footer collision. Reporting "no match" gives the desktop bar, which is
   // the layout these assertions are about.
   vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: false,
+    matches: NARROW.value && query.includes('max-width'),
     media: query,
     addEventListener() {},
     removeEventListener() {},
@@ -149,5 +153,35 @@ describe('auto theme — the colour parsing these refactors touched', () => {
   it('survives a background colour it cannot parse', () => {
     const bg = barBackgroundOn('color(display-p3 0.1 0.1 0.1)');
     expect(bg).not.toBe('');
+  });
+});
+
+describe('the keyboard-shortcut chip', () => {
+  const chipText = (root: HTMLElement) =>
+    [...root.querySelectorAll('span')].map((el) => el.textContent ?? '').join('|');
+
+  it('shows on a wide viewport', () => {
+    const { bar } = render();
+    expect(chipText(bar)).toMatch(/K$/);
+  });
+
+  it('is hidden below 768px — it costs ~55px of the input for a key no phone has', () => {
+    NARROW.value = true;
+    const { bar } = render();
+    expect(chipText(bar)).not.toMatch(/K$/);
+  });
+
+  it('gives the freed width back to the input', () => {
+    // The point of the guard, stated as the property that matters: the same
+    // bar yields a wider text field once the chip is gone.
+    const wide = render().bar.querySelectorAll('span').length;
+    act(() => root.unmount());
+    container.remove();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    NARROW.value = true;
+    const narrow = render().bar.querySelectorAll('span').length;
+    expect(narrow).toBeLessThan(wide);
   });
 });

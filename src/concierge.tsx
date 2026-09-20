@@ -228,6 +228,11 @@ export default function ConciergeWidget({
   const [isFocused, setIsFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMac, setIsMac] = useState(true);
+  // Narrow viewports get no keyboard shortcut chip. Starts false so the
+  // server render and the first client paint agree; the effect below
+  // corrects it. (Deriving it inline from matchMedia would hydrate-mismatch,
+  // which is why isMac is shaped this way too.)
+  const [isNarrow, setIsNarrow] = useState(false);
 
   // Lead form state — fires on session 3-turn cap OR tenant cap OR
   // immediately when the server signals `hv_matched`. Persists until
@@ -270,6 +275,13 @@ export default function ConciergeWidget({
 
   useEffect(() => {
     setIsMac(navigator.platform?.toUpperCase().includes('MAC') ?? true);
+
+    // Same breakpoint the footer-collision check uses, kept in sync with it.
+    const mq = window.matchMedia('(max-width: 767px)');
+    const sync = () => setIsNarrow(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
   }, []);
 
   // ── Chameleon theme detection — two-pass (data-theme + luminance) ──
@@ -660,7 +672,13 @@ export default function ConciergeWidget({
     useHvEarly, useElaborated, hvForm, leadForm, requireAddress, showTranscriptCheckbox,
   ]);
 
-  const showShortcut = !isFocused && !input && !isLoading;
+  // ⚡ Not decoration: the chip costs ~55px of the input's visible width, and
+  // on a phone it buys nothing — there is no keyboard to press it with, and
+  // `isMac` reads navigator.platform, so a touch device can render the wrong
+  // modifier for a shortcut it cannot use either way. On a 390px screen that
+  // 55px is the difference between a placeholder that reads and one that
+  // clips mid-word.
+  const showShortcut = !isFocused && !input && !isLoading && !isNarrow;
 
   // ── Theme tokens ──
   // Light-mode bar + panel opacities intentionally kept low (<=0.75) so
