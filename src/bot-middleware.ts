@@ -31,7 +31,7 @@ interface BotPattern extends BotMatch {
   pattern: RegExp;
 }
 
-/** 48 bots across 6 categories — kept in sync with apex-portal src/lib/bots/parser.ts */
+/** 53 bots across 6 categories — kept in sync with apex-portal src/lib/bots/parser.ts and each site's inlined middleware */
 export const BOT_PATTERNS: readonly BotPattern[] = [
   // AI crawlers
   { pattern: /GPTBot/i, name: "GPTBot", company: "OpenAI", type: "ai" },
@@ -39,7 +39,12 @@ export const BOT_PATTERNS: readonly BotPattern[] = [
   { pattern: /OAI-SearchBot/i, name: "OAI-SearchBot", company: "OpenAI", type: "ai" },
   { pattern: /ClaudeBot/i, name: "ClaudeBot", company: "Anthropic", type: "ai" },
   { pattern: /anthropic-ai/i, name: "anthropic-ai", company: "Anthropic", type: "ai" },
+  { pattern: /Claude-User/i, name: "Claude-User", company: "Anthropic", type: "ai" },
+  { pattern: /Claude-SearchBot/i, name: "Claude-SearchBot", company: "Anthropic", type: "ai" },
   { pattern: /PerplexityBot/i, name: "PerplexityBot", company: "Perplexity", type: "ai" },
+  { pattern: /Perplexity-User/i, name: "Perplexity-User", company: "Perplexity", type: "ai" },
+  { pattern: /MistralAI-User/i, name: "MistralAI-User", company: "Mistral", type: "ai" },
+  { pattern: /DuckAssistBot/i, name: "DuckAssistBot", company: "DuckDuckGo", type: "ai" },
   { pattern: /Google-Extended/i, name: "Google-Extended", company: "Google", type: "ai" },
   { pattern: /Bytespider/i, name: "Bytespider", company: "ByteDance", type: "ai" },
   { pattern: /Meta-ExternalAgent/i, name: "Meta-ExternalAgent", company: "Meta", type: "ai" },
@@ -109,6 +114,75 @@ export function detectUnknownBot(userAgent: string | null | undefined): BotMatch
   return null;
 }
 
+// ─── Who is the bot? (2026-09) ─────────────────────────────────────────────
+//
+// Every bot hit carries a `kind` beside its name and category:
+//   crawler        — training/index crawlers and every other classic bot
+//   agent_fetch    — an AI assistant fetching because a person asked it
+//                    something right now (ChatGPT-User, Claude-User, …)
+//   declared_agent — the request carries a Web Bot Auth signature (RFC 9421
+//                    HTTP Message Signatures): the agent named its key
+//                    directory in `Signature-Agent`, whatever its User-Agent
+//                    says. The only honest "an agent is here" signal on the
+//                    web for zones without Cloudflare Bot Management.
+//   unknown_bot    — bot-like User-Agent we have no pattern for
+
+export type BotKind = "crawler" | "agent_fetch" | "declared_agent" | "unknown_bot";
+
+/** Bots that fetch because a person asked an AI assistant something right now. */
+export const AGENT_FETCHERS: ReadonlySet<string> = new Set([
+  "ChatGPT-User",
+  "meta-externalfetcher",
+  "Claude-User",
+  "Perplexity-User",
+  "MistralAI-User",
+  "DuckAssistBot",
+]);
+
+export interface DeclaredAgent {
+  /** Host of the agent's key directory, from `Signature-Agent` (e.g. "chatgpt.com"). */
+  directory: string;
+  /** Whether the request also carried `Signature-Input` and `Signature`. */
+  signed: boolean;
+}
+
+type HeaderReader = { get(name: string): string | null };
+
+/**
+ * Web Bot Auth: a signing agent sends `Signature-Agent: "https://host"` (an
+ * sf-string, so quoted) plus `Signature-Input` and `Signature`. We record the
+ * directory host and whether the signature headers are present; verifying the
+ * signature against the directory's JWKS is a later step.
+ */
+export function detectDeclaredAgent(headers: HeaderReader): DeclaredAgent | null {
+  const raw = headers.get("signature-agent");
+  if (!raw) return null;
+  const value = raw.trim().replace(/^"+|"+$/g, "").trim();
+  if (!value) return null;
+  let host = value;
+  try {
+    host = new URL(value.includes("://") ? value : `https://${value}`).hostname;
+  } catch {
+    // keep the raw value; it is still evidence
+  }
+  host = host.toLowerCase().slice(0, 100);
+  if (!host) return null;
+  const signed = Boolean(headers.get("signature-input") && headers.get("signature"));
+  return { directory: host, signed };
+}
+
+export function botKind(botName: string, declared: DeclaredAgent | null): BotKind {
+  if (declared) return "declared_agent";
+  if (botName === "Unknown") return "unknown_bot";
+  if (AGENT_FETCHERS.has(botName)) return "agent_fetch";
+  return "crawler";
+}
+
+/** A declared agent whose User-Agent matched no pattern still counts, under its directory host. */
+export function declaredAgentBot(declared: DeclaredAgent): BotMatch {
+  return { name: `agent:${declared.directory}`, company: declared.directory, type: "ai" };
+}
+
 export interface TrackBotOptions {
   /** Full webhook URL, e.g. https://apex.isimplifyme.com/api/webhooks/bot-hit */
   webhookUrl: string;
@@ -138,7 +212,9 @@ export function trackBot(
   if (!options.webhookSecret) return;
 
   const ua = req.headers.get("user-agent");
-  const bot = detectBot(ua) ?? detectUnknownBot(ua);
+  // A Web Bot Auth signature makes the request a bot hit whatever the UA says.
+  const declared = detectDeclaredAgent(req.headers);
+  const bot = detectBot(ua) ?? detectUnknownBot(ua) ?? (declared ? declaredAgentBot(declared) : null);
   if (!bot) return;
 
   const url = new URL(req.url);
@@ -159,6 +235,10 @@ export function trackBot(
     referer: referer || null,
     region: options.region || "",
     unknown: bot.name === "Unknown",
+    // Who the bot is (2026-09): crawler | agent_fetch | declared_agent | unknown_bot
+    kind: botKind(bot.name, declared),
+    signed: declared?.signed ?? false,
+    agentDirectory: declared?.directory ?? null,
   };
 
   event.waitUntil(
@@ -261,7 +341,7 @@ export function trackAiReferrerVisit(
 
   const ua = req.headers.get("user-agent");
   // Skip bots — those are tracked by trackBot(), not here.
-  if (detectBot(ua) || detectUnknownBot(ua)) return;
+  if (detectBot(ua) || detectUnknownBot(ua) || detectDeclaredAgent(req.headers)) return;
   // Require a real browser UA (Mozilla/5.0 prefix is ubiquitous for browsers)
   if (!ua || !ua.includes("Mozilla")) return;
 
