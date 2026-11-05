@@ -262,6 +262,23 @@ export default function ConciergeWidget({
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isFocused, setIsFocused] = useState(false);
+
+  // Count the visitor's first engagement per page load: apex `{"event":"open"}`
+  // through the same proxy (apex lib/concierge/opens, #578). This bar is always
+  // visible and `isOpen` only flips on the first send, so the step before a
+  // conversation is the first focus of the input. Until 2026-11 nothing
+  // recorded it. Best effort; never blocks the bar.
+  const openCounted = useRef(false);
+  useEffect(() => {
+    if (!isFocused || openCounted.current) return;
+    openCounted.current = true;
+    fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'open', pathname: window.location.pathname }),
+      keepalive: true,
+    }).catch(() => {});
+  }, [isFocused, endpoint]);
   const [error, setError] = useState<string | null>(null);
   const [isMac, setIsMac] = useState(true);
   // Narrow viewports get no keyboard shortcut chip. Starts false so the

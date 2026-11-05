@@ -331,3 +331,33 @@ describe('the disclaimer band exists before it has anything to say', () => {
     expect(after?.textContent).toContain('Not a person.');
   });
 });
+
+// ── Open beacon (apex `{"event":"open"}`, fleet audit 2026-11-05) ──────────
+// Ships to every site on a `^` range, so the default path is pinned too: no
+// focus, no beacon.
+describe('open beacon', () => {
+  function beacons() {
+    const calls = (globalThis.fetch as unknown as { mock: { calls: [string, RequestInit?][] } }).mock.calls;
+    return calls.filter(([, init]) => typeof init?.body === 'string' && init.body.includes('"event":"open"'));
+  }
+
+  it('sends nothing before the input is focused', () => {
+    render();
+    expect(beacons()).toHaveLength(0);
+  });
+
+  it('sends exactly one beacon, to the configured endpoint, on first focus', () => {
+    const { input } = render({ endpoint: '/api/x' });
+    act(() => {
+      input.focus();
+    });
+    act(() => {
+      input.blur();
+      input.focus();
+    });
+    const sent = beacons();
+    expect(sent).toHaveLength(1);
+    expect(sent[0][0]).toBe('/api/x');
+    expect(JSON.parse(String(sent[0][1]?.body))).toEqual({ event: 'open', pathname: window.location.pathname });
+  });
+});
