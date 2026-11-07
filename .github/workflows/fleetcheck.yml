@@ -1,5 +1,8 @@
 name: fleetcheck
 
+permissions:
+  contents: read
+
 # Lints this repo against iSimplifyMe fleet rules + security checks.
 # BLOCKING: findings at error/security severity fail CI. `fleetcheck` is a
 # required status check on main — this workflow is what reports it. Every
