@@ -21,6 +21,6 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: fleetcheck
-        uses: iSimplifyMe/fleetcheck@79c762aa70559030e7bc2d7c92ceeaca8f90a683 # 2026-08-05: waves 1-4 + fork-identity-consistency
+        uses: iSimplifyMe/fleetcheck@1bc6cd93c0c5bbf393f1222987038eca541b8d98 # 2026-11-07: + authed-cache-leak, sst-domain-env-gate, never-run-prod-workflow, dupe-object-keys, middleware-asset-literals
         with:
           fail-on: error
